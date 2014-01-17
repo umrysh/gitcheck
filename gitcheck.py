@@ -38,7 +38,7 @@ def searchRepositories(dir=None):
 
 
 # Check state of a git repository
-def checkRepository(rep, verbose=False, ignoreBranch=r'^$'):
+def checkRepository(rep, verbose=False, ignoreBranch=r'^$',unsynced=False):
     aitem = []
     mitem = []
     ditem = []
@@ -104,7 +104,11 @@ def checkRepository(rep, verbose=False, ignoreBranch=r'^$'):
     else:
         strlocal = ""
 
-    print("%(prjname)s/%(branch)s %(strlocal)s%(topush)s%(topull)s" % locals())
+    if unsynced:
+        if topush != "" or topull != "" or strlocal != "":
+            print("%(prjname)s/%(branch)s %(strlocal)s%(topush)s%(topull)s" % locals())
+    else:    
+        print("%(prjname)s/%(branch)s %(strlocal)s%(topush)s%(topull)s" % locals())
     if verbose:
         if ischange > 0:
             filename = "  |--Local"
@@ -224,7 +228,7 @@ def gitExec(rep, command):
 
 
 # Check all git repositories
-def gitcheck(verbose, checkremote, ignoreBranch, bellOnActionNeeded, shouldClear, searchDir):
+def gitcheck(verbose, checkremote, ignoreBranch, bellOnActionNeeded, shouldClear, searchDir,unsynced):
     repo = searchRepositories(searchDir)
     actionNeeded = False
 
@@ -237,7 +241,7 @@ def gitcheck(verbose, checkremote, ignoreBranch, bellOnActionNeeded, shouldClear
         print(tcolor.RESET)
 
     for r in repo:
-        if checkRepository(r, verbose, ignoreBranch):
+        if checkRepository(r, verbose, ignoreBranch,unsynced):
             actionNeeded = True
 
     if actionNeeded and bellOnActionNeeded:
@@ -251,6 +255,7 @@ def usage():
     print("  -v, --verbose                 Show files & commits")
     print("  -r, --remote                  force remote update(slow)")
     print("  -b, --bell                    bell on action needed")
+    print("  -u, --unsynced                Only show unsynced repos")
     print("  -w <sec>, --watch <sec>       after displaying, wait <sec> and run again")
     print("  -i <re>, --ignore-branch <re> ignore branches matching the regex <re>")
     print("  -d <dir>,                     Search <dir> for repositories")
@@ -260,8 +265,8 @@ def main():
     try:
         opts, args = getopt.getopt(
             sys.argv[1:],
-            "vhrbw:i:d:",
-            ["verbose", "help", "remote", "bell", "watch:", "ignore-branch:",
+            "vhrbuw:i:d:",
+            ["verbose", "help", "remote", "bell", "unsynced", "watch:", "ignore-branch:",
              "dir:"])
     except getopt.GetoptError, e:
         if e.opt == 'w' and 'requires argument' in e.msg:
@@ -272,6 +277,7 @@ def main():
     checkremote = False
     watchInterval = 0
     bellOnActionNeeded = False
+    unsynced = False
     searchDir = None
     ignoreBranch = r'^$'  # empty string
     for opt, arg in opts:
@@ -283,6 +289,8 @@ def main():
             checkremote = True
         if opt in ("-b", "--bell"):
             bellOnActionNeeded = True
+        if opt in ("-u", "--unsynced"):
+            unsynced = True
         if opt in ("-w", "--watch"):
             watchInterval = arg
         if opt in ("-i", "--ignore-branch"):
@@ -301,7 +309,8 @@ def main():
             ignoreBranch,
             bellOnActionNeeded,
             watchInterval > 0,
-            searchDir
+            searchDir,
+            unsynced
         )
         if watchInterval:
             time.sleep(float(watchInterval))
