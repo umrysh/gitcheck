@@ -38,119 +38,143 @@ def searchRepositories(dir=None):
 
 
 # Check state of a git repository
-def checkRepository(rep, verbose=False, ignoreBranch=r'^$',unsynced=False):
+def checkRepository(rep, verbose=False, ignoreBranch=r'^$',unsynced=False,allBranches=False):
     aitem = []
     mitem = []
     ditem = []
     gsearch = re.compile(r'^.?([A-Z]) (.*)')
+    sbranch = re.compile(r'^\* (.*)')
 
-    branch = getDefaultBranch(rep)
-    if re.match(ignoreBranch, branch):
-        return False
-
-    changes = getLocalFilesChange(rep)
-    ischange = len(changes) > 0
-    actionNeeded = False # actionNeeded is branch push/pull, not local file change.
-
-    branch = getDefaultBranch(rep)
-    topush = ""
-    topull = ""
-    if branch != "":
-        remotes = getRemoteRepositories(rep)
-        for r in remotes:
-            count = len(getLocalToPush(rep, r, branch))
-            ischange = ischange or (count > 0)
-            actionNeeded = actionNeeded or (count > 0)
-            if count > 0:
-                topush += " %s%s%s[%sTo Push:%s%s]" % (
-                    tcolor.ORANGE,
-                    r,
-                    tcolor.DEFAULT,
-                    tcolor.BLUE,
-                    tcolor.DEFAULT,
-                    count
-                )
-
-        for r in remotes:
-            count = len(getRemoteToPull(rep, r, branch))
-            ischange = ischange or (count > 0)
-            actionNeeded = actionNeeded or (count > 0)
-            if count > 0:
-                topull += " %s%s%s[%sTo Pull:%s%s]" % (
-                    tcolor.ORANGE,
-                    r,
-                    tcolor.DEFAULT,
-                    tcolor.BLUE,
-                    tcolor.DEFAULT,
-                    count
-                )
-
-    if ischange:
-        color = tcolor.BOLD + tcolor.RED
+    if allBranches:
+        branches = getLocalRepositories(rep)
     else:
-        color = tcolor.DEFAULT + tcolor.GREEN
+        branches = [getDefaultBranch(rep)]
 
-    # Print result
-    prjname = "%s%s%s" % (color, rep, tcolor.DEFAULT)
-    if len(changes) > 0:
-        strlocal = "%sLocal%s[" % (tcolor.ORANGE, tcolor.DEFAULT)
-        strlocal += "%sTo Commit:%s%s" % (
-            tcolor.BLUE,
-            tcolor.DEFAULT,
-            len(getLocalFilesChange(rep))
-        )
+    for branch in branches:
+        m = sbranch.match(branch)
+        if m:
+            branch = m.group(1)
 
-        strlocal += "]"
-    else:
-        strlocal = ""
+        branch = branch.strip()
 
-    if unsynced:
-        if topush != "" or topull != "" or strlocal != "":
-            print("%(prjname)s/%(branch)s %(strlocal)s%(topush)s%(topull)s" % locals())
-    else:    
-        print("%(prjname)s/%(branch)s %(strlocal)s%(topush)s%(topull)s" % locals())
-    if verbose:
-        if ischange > 0:
-            filename = "  |--Local"
-            print(filename)
-            for c in changes:
-                filename = "     |--%s%s%s" % (
-                    tcolor.ORANGE,
-                    c[1],
-                    tcolor.DEFAULT)
-                print(filename)
+        if not re.match(ignoreBranch, branch):
 
-        if branch != "":
-            remotes = getRemoteRepositories(rep)
-            for r in remotes:
-                commits = getLocalToPush(rep, r, branch)
-                if len(commits) > 0:
-                    rname = "  |--%(r)s" % locals()
-                    print(rname)
-                    for commit in commits:
-                        commit = "     |--%s[To Push]%s %s%s%s" % (
-                            tcolor.MAGENTA,
+            changes = getLocalFilesChange(rep)
+            ischange = len(changes) > 0
+            actionNeeded = False # actionNeeded is branch push/pull, not local file change.
+
+            topush = ""
+            topull = ""
+            if branch != "":
+                remotes = getRemoteRepositories(rep)
+                for r in remotes:
+                    if allBranches:
+                        # Fetch updates
+                        fetchRemoteRepositories(rep,r)
+                        count = len(getLocalToPush(rep, r, branch,branch))
+                    else:
+                        count = len(getLocalToPush(rep, r, branch))
+                    ischange = ischange or (count > 0)
+                    actionNeeded = actionNeeded or (count > 0)
+                    if count > 0:
+                        topush += " %s%s%s[%sTo Push:%s%s]" % (
+                            tcolor.ORANGE,
+                            r,
                             tcolor.DEFAULT,
                             tcolor.BLUE,
-                            commit,
-                            tcolor.DEFAULT)
-                        print(commit)
+                            tcolor.DEFAULT,
+                            count
+                        )
 
-        if branch != "":
-            remotes = getRemoteRepositories(rep)
-            for r in remotes:
-                commits = getRemoteToPull(rep, r, branch)
-                if len(commits) > 0:
-                    rname = "  |--%(r)s" % locals()
-                    print(rname)
-                    for commit in commits:
-                        commit = "     |--%s[To Pull]%s %s%s%s" % (
-                            tcolor.MAGENTA,
+                for r in remotes:
+                    if allBranches:
+                        count = len(getRemoteToPull(rep, r, branch,branch))
+                    else:
+                        count = len(getRemoteToPull(rep, r, branch))
+                    ischange = ischange or (count > 0)
+                    actionNeeded = actionNeeded or (count > 0)
+                    if count > 0:
+                        topull += " %s%s%s[%sTo Pull:%s%s]" % (
+                            tcolor.ORANGE,
+                            r,
                             tcolor.DEFAULT,
                             tcolor.BLUE,
-                            commit,
+                            tcolor.DEFAULT,
+                            count
+                        )
+
+            if ischange:
+                color = tcolor.BOLD + tcolor.RED
+            else:
+                color = tcolor.DEFAULT + tcolor.GREEN
+
+            # Print result
+            prjname = "%s%s%s" % (color, rep, tcolor.DEFAULT)
+            if len(changes) > 0:
+                strlocal = "%sLocal%s[" % (tcolor.ORANGE, tcolor.DEFAULT)
+                strlocal += "%sTo Commit:%s%s" % (
+                    tcolor.BLUE,
+                    tcolor.DEFAULT,
+                    len(getLocalFilesChange(rep))
+                )
+
+                strlocal += "]"
+            else:
+                strlocal = ""
+
+            if unsynced:
+                if topush != "" or topull != "" or strlocal != "":
+                    print("%(prjname)s/%(branch)s %(strlocal)s%(topush)s%(topull)s" % locals())
+            else:    
+                print("%(prjname)s/%(branch)s %(strlocal)s%(topush)s%(topull)s" % locals())
+            if verbose:
+                if ischange > 0:
+                    filename = "  |--Local"
+                    print(filename)
+                    for c in changes:
+                        filename = "     |--%s%s%s" % (
+                            tcolor.ORANGE,
+                            c[1],
                             tcolor.DEFAULT)
-                        print(commit)
+                        print(filename)
+
+                if branch != "":
+                    remotes = getRemoteRepositories(rep)
+                    for r in remotes:
+                        if allBranches:
+                            commits = getLocalToPush(rep, r, branch,branch)
+                        else:
+                            commits = getLocalToPush(rep, r, branch)
+                        if len(commits) > 0:
+                            rname = "  |--%(r)s" % locals()
+                            print(rname)
+                            for commit in commits:
+                                commit = "     |--%s[To Push]%s %s%s%s" % (
+                                    tcolor.MAGENTA,
+                                    tcolor.DEFAULT,
+                                    tcolor.BLUE,
+                                    commit,
+                                    tcolor.DEFAULT)
+                                print(commit)
+
+                if branch != "":
+                    remotes = getRemoteRepositories(rep)
+                    for r in remotes:
+                        if allBranches:
+                            commits = getRemoteToPull(rep, r, branch,branch)
+                        else:
+                            commits = getRemoteToPull(rep, r, branch)
+                        if len(commits) > 0:
+                            rname = "  |--%(r)s" % locals()
+                            print(rname)
+                            for commit in commits:
+                                commit = "     |--%s[To Pull]%s %s%s%s" % (
+                                    tcolor.MAGENTA,
+                                    tcolor.DEFAULT,
+                                    tcolor.BLUE,
+                                    commit,
+                                    tcolor.DEFAULT)
+                                print(commit)
 
     return actionNeeded
 
@@ -176,19 +200,19 @@ def hasRemoteBranch(rep, remote, branch):
     return (result != "")
 
 
-def getLocalToPush(rep, remote, branch):
+def getLocalToPush(rep, remote, branch, local="HEAD"):
     if not hasRemoteBranch(rep, remote, branch):
         return []
-    result = gitExec(rep, "git log %(remote)s/%(branch)s..HEAD --oneline"
+    result = gitExec(rep, "git log %(remote)s/%(branch)s..%(local)s --oneline"
                      % locals())
 
     return [x for x in result.split('\n') if x]
 
 
-def getRemoteToPull(rep, remote, branch):
+def getRemoteToPull(rep, remote, branch, local="HEAD"):
     if not hasRemoteBranch(rep, remote, branch):
         return []
-    result = gitExec(rep, "git log HEAD..%(remote)s/%(branch)s --oneline"
+    result = gitExec(rep, "git log %(local)s..%(remote)s/%(branch)s --oneline"
                      % locals())
 
     return [x for x in result.split('\n') if x]
@@ -219,6 +243,19 @@ def getRemoteRepositories(rep):
     remotes = [x for x in result.split('\n') if x]
     return remotes
 
+def getLocalRepositories(rep):
+    result = gitExec(rep, "git branch"
+                        % locals())
+
+    branches = [x for x in result.split('\n') if x]
+    return branches
+
+def fetchRemoteRepositories(rep,remote):
+    result = gitExec(rep, "git fetch 2>&1"
+                        % locals())
+    if "ERROR" in result.upper():
+        x = result.split('\n')
+        print tcolor.BOLD + tcolor.RED + rep + tcolor.DEFAULT + "/" + remote + " " + tcolor.RED + x[0] + tcolor.DEFAULT
 
 # Custom git command
 def gitExec(rep, command):
@@ -228,7 +265,7 @@ def gitExec(rep, command):
 
 
 # Check all git repositories
-def gitcheck(verbose, checkremote, ignoreBranch, bellOnActionNeeded, shouldClear, searchDir,unsynced):
+def gitcheck(verbose, checkremote, ignoreBranch, bellOnActionNeeded, shouldClear, searchDir,unsynced,allBranches):
     repo = searchRepositories(searchDir)
     actionNeeded = False
 
@@ -241,7 +278,7 @@ def gitcheck(verbose, checkremote, ignoreBranch, bellOnActionNeeded, shouldClear
         print(tcolor.RESET)
 
     for r in repo:
-        if checkRepository(r, verbose, ignoreBranch,unsynced):
+        if checkRepository(r, verbose, ignoreBranch,unsynced,allBranches):
             actionNeeded = True
 
     if actionNeeded and bellOnActionNeeded:
@@ -256,6 +293,7 @@ def usage():
     print("  -r, --remote                  force remote update(slow)")
     print("  -b, --bell                    bell on action needed")
     print("  -u, --unsynced                Only show unsynced repos")
+    print("  -a, --all                     Show all branches")
     print("  -w <sec>, --watch <sec>       after displaying, wait <sec> and run again")
     print("  -i <re>, --ignore-branch <re> ignore branches matching the regex <re>")
     print("  -d <dir>,                     Search <dir> for repositories")
@@ -265,8 +303,8 @@ def main():
     try:
         opts, args = getopt.getopt(
             sys.argv[1:],
-            "vhrbuw:i:d:",
-            ["verbose", "help", "remote", "bell", "unsynced", "watch:", "ignore-branch:",
+            "vhrbuaw:i:d:",
+            ["verbose", "help", "remote", "bell", "unsynced", "all", "watch:", "ignore-branch:",
              "dir:"])
     except getopt.GetoptError, e:
         if e.opt == 'w' and 'requires argument' in e.msg:
@@ -278,6 +316,7 @@ def main():
     watchInterval = 0
     bellOnActionNeeded = False
     unsynced = False
+    allBranches = False
     searchDir = None
     ignoreBranch = r'^$'  # empty string
     for opt, arg in opts:
@@ -291,6 +330,8 @@ def main():
             bellOnActionNeeded = True
         if opt in ("-u", "--unsynced"):
             unsynced = True
+        if opt in ("-a", "--all"):
+            allBranches = True
         if opt in ("-w", "--watch"):
             watchInterval = arg
         if opt in ("-i", "--ignore-branch"):
@@ -310,7 +351,8 @@ def main():
             bellOnActionNeeded,
             watchInterval > 0,
             searchDir,
-            unsynced
+            unsynced,
+            allBranches
         )
         if watchInterval:
             time.sleep(float(watchInterval))
