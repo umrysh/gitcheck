@@ -259,7 +259,7 @@ def fetchRemoteRepositories(rep,remote):
 
 # Custom git command
 def gitExec(rep, command):
-    cmd = "cd %(rep)s ; %(command)s" % locals()
+    cmd = "cd '%(rep)s' ; %(command)s" % locals()
     cmd = os.popen(cmd)
     return cmd.read()
 
